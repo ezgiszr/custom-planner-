@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { Plus, LayoutTemplate, Flower2, Palette, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { db } from "@/firebase";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import WidgetRenderer from "./WidgetRenderer";
 import { Button } from "@/components/ui/button";
 
@@ -29,71 +30,125 @@ const THEME_COLORS = [
   { id: 'sage-dark', color: '#88AE89', name: 'Sage Dark' },
 ];
 
+const DEFAULT_PREFS = { layout: [], widgets: [], theme: "soft-pink-light" };
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
-  const [layout, setLayout] = useLocalStorage("dashboard_layout", []);
-  const [widgets, setWidgets] = useLocalStorage("dashboard_widgets", []);
+  const uid = user?.uid;
+
+  const [prefs, setPrefsLocal] = useState(DEFAULT_PREFS);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [theme, setTheme] = useLocalStorage("dashboard_theme", "soft-pink-light");
-  const [isMounted, setIsMounted] = useState(false);
   const colorPickerRef = useRef(null);
   const dropdownRef = useRef(null);
+  const layoutSaveTimer = useRef(null);
 
+  // --- Load preferences from Firestore ---
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    if (!uid) return;
+    const prefRef = doc(db, "users", uid, "preferences", "dashboard");
+    const unsub = onSnapshot(prefRef, (snap) => {
+      if (snap.exists()) {
+        setPrefsLocal((prev) => ({ ...DEFAULT_PREFS, ...snap.data() }));
+      }
+      setPrefsLoaded(true);
+    });
+    return () => unsub();
+  }, [uid]);
 
+  // --- Save preferences to Firestore (debounced for layout changes) ---
+  const savePrefs = useCallback((updated, debounceMs = 0) => {
+    if (!uid) return;
+    if (layoutSaveTimer.current) clearTimeout(layoutSaveTimer.current);
+    const save = () =>
+      setDoc(doc(db, "users", uid, "preferences", "dashboard"), updated, { merge: true });
+    if (debounceMs > 0) {
+      layoutSaveTimer.current = setTimeout(save, debounceMs);
+    } else {
+      save();
+    }
+  }, [uid]);
+
+  // --- Click outside ---
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target)) {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target))
         setShowColorPicker(false);
-      }
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
         setShowDropdown(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // --- Helpers ---
+  const layout = prefs.layout;
+  const widgets = prefs.widgets;
+  const theme = prefs.theme;
+
+  const setLayout = (newLayout) => {
+    const updated = { ...prefs, layout: newLayout };
+    setPrefsLocal(updated);
+    savePrefs(updated, 1500); // debounce layout saves (fires during drag)
+  };
+
+  const setWidgets = (newWidgets) => {
+    const updated = { ...prefs, widgets: newWidgets };
+    setPrefsLocal(updated);
+    savePrefs(updated);
+  };
+
+  const setTheme = (newTheme) => {
+    const updated = { ...prefs, theme: newTheme };
+    setPrefsLocal(updated);
+    savePrefs(updated);
+  };
+
   const addWidget = (option) => {
     const newId = `${option.type}_${Date.now()}`;
     const newWidget = { id: newId, type: option.type };
-    
-    // Find a somewhat intelligent placement
-    const newY = Math.max(0, ...layout.map(l => l.y + l.h), 0);
-    
+    const newY = Math.max(0, ...layout.map((l) => l.y + l.h), 0);
     const newLayoutItem = {
-      i: newId,
-      x: 0,
-      y: newY,
-      w: option.defaultW,
-      h: option.defaultH,
-      minW: 3,
-      minH: 3
+      i: newId, x: 0, y: newY,
+      w: option.defaultW, h: option.defaultH,
+      minW: 3, minH: 3,
     };
-
-    setWidgets([...widgets, newWidget]);
-    setLayout([...layout, newLayoutItem]);
+    const updated = {
+      ...prefs,
+      widgets: [...widgets, newWidget],
+      layout: [...layout, newLayoutItem],
+    };
+    setPrefsLocal(updated);
+    savePrefs(updated);
     setShowDropdown(false);
   };
 
   const removeWidget = (id) => {
-    setWidgets(widgets.filter(w => w.id !== id));
-    setLayout(layout.filter(l => l.i !== id));
+    const updated = {
+      ...prefs,
+      widgets: widgets.filter((w) => w.id !== id),
+      layout: layout.filter((l) => l.i !== id),
+    };
+    setPrefsLocal(updated);
+    savePrefs(updated);
   };
 
-  const onLayoutChange = (newLayout) => {
-    setLayout(newLayout);
-  };
+  if (!prefsLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #FFE4FB 0%, #C5E3FF 100%)" }}>
+        <div className="flex flex-col items-center gap-3 text-rose-400">
+          <Flower2 className="h-10 w-10 animate-spin" />
+          <p className="text-sm font-medium">Dashboard yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (!isMounted) return null;
-
-  const currentTheme = THEME_COLORS.find(c => c.id === theme) || THEME_COLORS[0];
+  const currentTheme = THEME_COLORS.find((c) => c.id === theme) || THEME_COLORS[0];
 
   return (
-    <div 
+    <div
       className="min-h-screen p-6 md:p-8 transition-colors duration-500"
       style={{ backgroundColor: currentTheme.color }}
     >
@@ -120,32 +175,28 @@ export default function Dashboard() {
               {user?.photoURL && (
                 <img src={user.photoURL} alt="avatar" className="w-6 h-6 rounded-full" />
               )}
-              <span className="text-sm font-medium text-rose-700 hidden sm:block">{user?.displayName?.split(" ")[0]}</span>
+              <span className="text-sm font-medium text-rose-700 hidden sm:block">
+                {user?.displayName?.split(" ")[0]}
+              </span>
               <button onClick={logout} title="Çıkış Yap" className="text-rose-400 hover:text-rose-600 transition-colors">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
+
             <div className="relative" ref={colorPickerRef}>
-              <Button 
-                onClick={() => {
-                  setShowColorPicker(!showColorPicker);
-                  setShowDropdown(false);
-                }}
+              <Button
+                onClick={() => { setShowColorPicker(!showColorPicker); setShowDropdown(false); }}
                 variant="outline"
                 className="bg-white/50 backdrop-blur-sm border-white/50 hover:bg-white/80 rounded-xl"
               >
                 <Palette className="h-5 w-5" />
               </Button>
-
               {showColorPicker && (
                 <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white/90 backdrop-blur-xl border border-rose-100 shadow-xl overflow-hidden z-50 p-2 grid gap-1">
-                  {THEME_COLORS.map(color => (
+                  {THEME_COLORS.map((color) => (
                     <button
                       key={color.id}
-                      onClick={() => {
-                        setTheme(color.id);
-                        setShowColorPicker(false);
-                      }}
+                      onClick={() => { setTheme(color.id); setShowColorPicker(false); }}
                       className={`flex items-center gap-3 w-full text-left px-3 py-2 text-sm font-medium rounded-lg transition-colors ${theme === color.id ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100'}`}
                     >
                       <div className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: color.color }} />
@@ -157,30 +208,26 @@ export default function Dashboard() {
             </div>
 
             <div className="relative" ref={dropdownRef}>
-              <Button 
-                onClick={() => {
-                  setShowDropdown(!showDropdown);
-                  setShowColorPicker(false);
-                }}
-              className="bg-rose-500 hover:bg-rose-600 rounded-full pl-4 pr-5 shadow-lg"
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              Widget Ekle
-            </Button>
-
-            {showDropdown && (
-              <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white/90 backdrop-blur-xl border border-rose-100 shadow-xl overflow-hidden z-50">
-                {WIDGET_OPTIONS.map(opt => (
-                  <button
-                    key={opt.type}
-                    onClick={() => addWidget(opt)}
-                    className="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
+              <Button
+                onClick={() => { setShowDropdown(!showDropdown); setShowColorPicker(false); }}
+                className="bg-rose-500 hover:bg-rose-600 rounded-full pl-4 pr-5 shadow-lg"
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                Widget Ekle
+              </Button>
+              {showDropdown && (
+                <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white/90 backdrop-blur-xl border border-rose-100 shadow-xl overflow-hidden z-50">
+                  {WIDGET_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.type}
+                      onClick={() => addWidget(opt)}
+                      className="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -198,14 +245,14 @@ export default function Dashboard() {
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
             rowHeight={90}
-            onLayoutChange={onLayoutChange}
+            onLayoutChange={setLayout}
             draggableHandle=".drag-handle"
             isBounded={false}
           >
-            {widgets.map(widget => (
+            {widgets.map((widget) => (
               <div key={widget.id} className="p-2">
-                <WidgetRenderer 
-                  id={widget.id} 
+                <WidgetRenderer
+                  id={widget.id}
                   type={widget.type}
                   onRemove={removeWidget}
                 />
