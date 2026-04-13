@@ -4,11 +4,13 @@ import { Card } from "@/components/ui/card";
 import TodoWidget from "./widgets/TodoWidget";
 import TimerWidget from "./widgets/TimerWidget";
 import WeeklyPlanner from "./widgets/WeeklyPlanner";
+import CalendarWidget from "./widgets/CalendarWidget";
 
 const WIDGET_TITLES = {
   todo: "Görev Listesi",
   timer: "Zamanlayıcı",
   weekly: "Haftalık Plan",
+  calendar: "Takvim",
 };
 
 export default function WidgetRenderer({ id, type, onRemove }) {
@@ -20,6 +22,8 @@ export default function WidgetRenderer({ id, type, onRemove }) {
         return <TimerWidget />;
       case "weekly":
         return <WeeklyPlanner />;
+      case "calendar":
+        return <CalendarWidget />;
       default:
         return <div className="p-4">Bilinmeyen Widget: {type}</div>;
     }

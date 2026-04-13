@@ -13,11 +13,11 @@ export function StoreProvider({ children }) {
 
   const [tasks, setTasksLocal] = useState([]);
   const [weeklyEvents, setWeeklyEventsLocal] = useState([]);
+  const [calendarEvents, setCalendarEventsLocal] = useState([]);
   const [activeTaskId, setActiveTaskId] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // Debounce tasks Firestore save (avoid writing every countdown tick)
   const tasksSaveTimer = useRef(null);
 
   // ------ Firestore listeners ------
@@ -25,22 +25,23 @@ export function StoreProvider({ children }) {
     if (!uid) {
       setTasksLocal([]);
       setWeeklyEventsLocal([]);
+      setCalendarEventsLocal([]);
       setLoaded(false);
       return;
     }
 
     let tasksLoaded = false;
     let eventsLoaded = false;
+    let calLoaded = false;
 
     const checkLoaded = () => {
-      if (tasksLoaded && eventsLoaded) setLoaded(true);
+      if (tasksLoaded && eventsLoaded && calLoaded) setLoaded(true);
     };
 
     const unsubTasks = onSnapshot(
       collection(db, "users", uid, "tasks"),
       (snap) => {
-        const data = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-        setTasksLocal(data);
+        setTasksLocal(snap.docs.map((d) => ({ ...d.data(), id: d.id })));
         tasksLoaded = true;
         checkLoaded();
       }
@@ -49,17 +50,22 @@ export function StoreProvider({ children }) {
     const unsubEvents = onSnapshot(
       collection(db, "users", uid, "weeklyEvents"),
       (snap) => {
-        const data = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-        setWeeklyEventsLocal(data);
+        setWeeklyEventsLocal(snap.docs.map((d) => ({ ...d.data(), id: d.id })));
         eventsLoaded = true;
         checkLoaded();
       }
     );
 
-    return () => {
-      unsubTasks();
-      unsubEvents();
-    };
+    const unsubCal = onSnapshot(
+      collection(db, "users", uid, "calendarEvents"),
+      (snap) => {
+        setCalendarEventsLocal(snap.docs.map((d) => ({ ...d.data(), id: d.id })));
+        calLoaded = true;
+        checkLoaded();
+      }
+    );
+
+    return () => { unsubTasks(); unsubEvents(); unsubCal(); };
   }, [uid]);
 
   // ------ Firestore writers ------
@@ -71,7 +77,7 @@ export function StoreProvider({ children }) {
         const { id, ...data } = task;
         await setDoc(doc(db, "users", uid, "tasks", String(id)), data);
       }
-    }, 3000); // debounce: write at most every 3 seconds
+    }, 3000);
   };
 
   const saveWeeklyEventsToFirestore = async (updated) => {
@@ -79,6 +85,14 @@ export function StoreProvider({ children }) {
     for (const event of updated) {
       const { id, ...data } = event;
       await setDoc(doc(db, "users", uid, "weeklyEvents", String(id)), data);
+    }
+  };
+
+  const saveCalendarEventsToFirestore = async (updated) => {
+    if (!uid) return;
+    for (const event of updated) {
+      const { id, ...data } = event;
+      await setDoc(doc(db, "users", uid, "calendarEvents", String(id)), data);
     }
   };
 
@@ -92,16 +106,18 @@ export function StoreProvider({ children }) {
     await deleteDoc(doc(db, "users", uid, "weeklyEvents", String(id)));
   };
 
-  // ------ Public setters (update local state + sync Firestore) ------
+  const deleteCalendarEventFromFirestore = async (id) => {
+    if (!uid) return;
+    await deleteDoc(doc(db, "users", uid, "calendarEvents", String(id)));
+  };
+
+  // ------ Public setters ------
   const setTasks = (updater) => {
     setTasksLocal((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      // Detect deletions
       const prevIds = new Set(prev.map((t) => t.id));
       const nextIds = new Set(next.map((t) => t.id));
-      prevIds.forEach((id) => {
-        if (!nextIds.has(id)) deleteTaskFromFirestore(id);
-      });
+      prevIds.forEach((id) => { if (!nextIds.has(id)) deleteTaskFromFirestore(id); });
       saveTasksToFirestore(next);
       return next;
     });
@@ -110,13 +126,21 @@ export function StoreProvider({ children }) {
   const setWeeklyEvents = (updater) => {
     setWeeklyEventsLocal((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      // Detect deletions
       const prevIds = new Set(prev.map((e) => e.id));
       const nextIds = new Set(next.map((e) => e.id));
-      prevIds.forEach((id) => {
-        if (!nextIds.has(id)) deleteWeeklyEventFromFirestore(id);
-      });
+      prevIds.forEach((id) => { if (!nextIds.has(id)) deleteWeeklyEventFromFirestore(id); });
       saveWeeklyEventsToFirestore(next);
+      return next;
+    });
+  };
+
+  const setCalendarEvents = (updater) => {
+    setCalendarEventsLocal((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      const prevIds = new Set(prev.map((e) => e.id));
+      const nextIds = new Set(next.map((e) => e.id));
+      prevIds.forEach((id) => { if (!nextIds.has(id)) deleteCalendarEventFromFirestore(id); });
+      saveCalendarEventsToFirestore(next);
       return next;
     });
   };
@@ -141,24 +165,19 @@ export function StoreProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      tasks,
-      setTasks,
-      weeklyEvents,
-      setWeeklyEvents,
-      activeTaskId,
-      setActiveTaskId,
-      isRunning,
-      setIsRunning,
+      tasks, setTasks,
+      weeklyEvents, setWeeklyEvents,
+      calendarEvents, setCalendarEvents,
+      activeTaskId, setActiveTaskId,
+      isRunning, setIsRunning,
       loaded,
       completedCount: tasks.filter((item) => item.done).length,
       progress:
         tasks.length === 0
           ? 0
-          : Math.round(
-              (tasks.filter((item) => item.done).length / tasks.length) * 100
-            ),
+          : Math.round((tasks.filter((item) => item.done).length / tasks.length) * 100),
     }),
-    [tasks, weeklyEvents, activeTaskId, isRunning, loaded]
+    [tasks, weeklyEvents, calendarEvents, activeTaskId, isRunning, loaded]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
