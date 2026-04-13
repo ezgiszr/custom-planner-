@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
-import { Plus, LayoutTemplate, Flower2, Palette } from "lucide-react";
+import { Plus, LayoutTemplate, Flower2, Palette, LogOut } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import WidgetRenderer from "./WidgetRenderer";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,9 @@ const WIDGET_OPTIONS = [
 ];
 
 const THEME_COLORS = [
+  { id: 'white', color: '#FFFFFF', name: 'White' },
+  { id: 'pastel-blue', color: '#D6EAF8', name: 'Pastel Blue' },
+  { id: 'pastel-blue-soft', color: '#C5E3FF', name: 'Pastel Blue Light' },
   { id: 'soft-pink-light', color: '#FFE4FB', name: 'Soft Pink Light' },
   { id: 'soft-pink', color: '#FFC8EE', name: 'Soft Pink' },
   { id: 'sage-light', color: '#DEE2B9', name: 'Sage Light' },
@@ -26,15 +30,31 @@ const THEME_COLORS = [
 ];
 
 export default function Dashboard() {
+  const { user, logout } = useAuth();
   const [layout, setLayout] = useLocalStorage("dashboard_layout", []);
   const [widgets, setWidgets] = useLocalStorage("dashboard_widgets", []);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [theme, setTheme] = useLocalStorage("dashboard_theme", "soft-pink-light");
   const [isMounted, setIsMounted] = useState(false);
+  const colorPickerRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target)) {
+        setShowColorPicker(false);
+      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const addWidget = (option) => {
@@ -95,7 +115,17 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3 relative">
-            <div className="relative">
+            {/* User info + logout */}
+            <div className="flex items-center gap-2 bg-white/50 backdrop-blur-sm border border-white/50 rounded-xl px-3 py-1.5">
+              {user?.photoURL && (
+                <img src={user.photoURL} alt="avatar" className="w-6 h-6 rounded-full" />
+              )}
+              <span className="text-sm font-medium text-rose-700 hidden sm:block">{user?.displayName?.split(" ")[0]}</span>
+              <button onClick={logout} title="Çıkış Yap" className="text-rose-400 hover:text-rose-600 transition-colors">
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="relative" ref={colorPickerRef}>
               <Button 
                 onClick={() => {
                   setShowColorPicker(!showColorPicker);
@@ -126,7 +156,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <Button 
                 onClick={() => {
                   setShowDropdown(!showDropdown);

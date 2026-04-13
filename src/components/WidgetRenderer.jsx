@@ -27,7 +27,7 @@ export default function WidgetRenderer({ id, type, onRemove }) {
 
   return (
     <Card className="h-full w-full flex flex-col overflow-hidden bg-white/45 backdrop-blur-2xl border-white/70 shadow-[0_10px_30px_rgba(244,170,200,0.2)]">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/50 bg-white/30 shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/50 bg-white/30 shrink-0 select-none">
         <div className="flex items-center gap-2">
           <div className="drag-handle cursor-move text-rose-400 hover:text-rose-600 p-1">
             <GripHorizontal className="h-4 w-4" />

@@ -66,31 +66,74 @@ export default function WeeklyPlanner() {
       <div className="flex-1 overflow-auto">
         <div className="grid grid-cols-7 gap-2 min-w-[600px] h-full">
           {days.map((day) => {
-            const dayEvents = weeklyEvents
-              .filter((e) => e.day === day)
-              .sort((a, b) => {
-                if (!a.time && !b.time) return 0;
-                if (!a.time) return 1; // Put events without time at the bottom
-                if (!b.time) return -1;
-                return a.time.localeCompare(b.time);
-              });
+            const dayEvents = weeklyEvents.filter((e) => e.day === day);
               
             return (
               <div key={day} className="flex flex-col items-center h-full">
                 <div className="text-xs font-medium text-rose-500 mb-2">{day}</div>
-                <div className="w-full h-full bg-white/50 border border-rose-100 rounded-lg min-h-[150px] p-1.5 flex flex-col gap-2 shadow-sm">
+                <div 
+                  className="w-full h-full bg-white/50 border border-rose-100 rounded-lg min-h-[150px] p-1.5 flex flex-col gap-2 shadow-sm transition-colors duration-200"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const draggedId = e.dataTransfer.getData("eventId");
+                    if (!draggedId) return;
+                    
+                    setWeeklyEvents(prev => {
+                      const draggedIdx = prev.findIndex(ev => String(ev.id) === String(draggedId));
+                      if (draggedIdx === -1) return prev;
+                      
+                      const newEvents = [...prev];
+                      const [draggedEvent] = newEvents.splice(draggedIdx, 1);
+                      draggedEvent.day = day; // Ensure day is updated if dropped into a different column
+                      
+                      // Pushing to the end of the array moves it to the bottom of that day's column
+                      newEvents.push(draggedEvent);
+                      return newEvents;
+                    });
+                  }}
+                >
                   {dayEvents.map((e) => (
                     <div
                       key={e.id}
-                      className="group relative flex flex-col text-[11px] leading-tight bg-rose-100 text-rose-800 rounded p-1.5 border border-rose-200 break-words"
+                      draggable
+                      onDragStart={(evt) => {
+                        evt.dataTransfer.setData("eventId", e.id);
+                        evt.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(evt) => {
+                        evt.preventDefault();
+                        evt.stopPropagation();
+                      }}
+                      onDrop={(evt) => {
+                        evt.preventDefault();
+                        evt.stopPropagation();
+                        const draggedId = evt.dataTransfer.getData("eventId");
+                        if (!draggedId || String(draggedId) === String(e.id)) return;
+                        
+                        setWeeklyEvents(prev => {
+                          const originalDraggedIdx = prev.findIndex(ev => String(ev.id) === String(draggedId));
+                          const originalTargetIdx = prev.findIndex(ev => String(ev.id) === String(e.id));
+                          
+                          if (originalDraggedIdx === -1 || originalTargetIdx === -1) return prev;
+                          
+                          const newEvents = [...prev];
+                          const [draggedEvent] = newEvents.splice(originalDraggedIdx, 1);
+                          draggedEvent.day = day;
+                          
+                          newEvents.splice(originalTargetIdx, 0, draggedEvent);
+                          return newEvents;
+                        });
+                      }}
+                      className="group relative flex flex-col text-[11px] leading-tight bg-rose-100 text-rose-800 rounded p-1.5 border border-rose-200 break-words cursor-grab active:cursor-grabbing hover:border-rose-400 hover:shadow-md transition-all select-none"
                     >
                       {e.time && (
-                        <div className="flex items-center text-[10px] text-rose-500 font-semibold mb-0.5">
+                        <div className="flex items-center text-[10px] text-rose-500 font-semibold mb-0.5 pointer-events-none">
                           <Clock className="w-3 h-3 mr-1" />
                           {e.time}
                         </div>
                       )}
-                      <span className="pr-3">{e.text}</span>
+                      <span className="pr-3 pointer-events-none">{e.text}</span>
                       
                       <button 
                         onClick={() => removeEvent(e.id)}
