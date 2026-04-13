@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
-import { Plus, LayoutTemplate, Flower2 } from "lucide-react";
+import { Plus, LayoutTemplate, Flower2, Palette } from "lucide-react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import WidgetRenderer from "./WidgetRenderer";
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,20 @@ const WIDGET_OPTIONS = [
   { type: "weekly", label: "Haftalık Plan", defaultW: 6, defaultH: 5 },
 ];
 
+const THEME_COLORS = [
+  { id: 'soft-pink-light', color: '#FFE4FB', name: 'Soft Pink Light' },
+  { id: 'soft-pink', color: '#FFC8EE', name: 'Soft Pink' },
+  { id: 'sage-light', color: '#DEE2B9', name: 'Sage Light' },
+  { id: 'sage-medium', color: '#B1CBAC', name: 'Sage Medium' },
+  { id: 'sage-dark', color: '#88AE89', name: 'Sage Dark' },
+];
+
 export default function Dashboard() {
   const [layout, setLayout] = useLocalStorage("dashboard_layout", []);
   const [widgets, setWidgets] = useLocalStorage("dashboard_widgets", []);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [theme, setTheme] = useLocalStorage("dashboard_theme", "soft-pink-light");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -60,8 +70,13 @@ export default function Dashboard() {
 
   if (!isMounted) return null;
 
+  const currentTheme = THEME_COLORS.find(c => c.id === theme) || THEME_COLORS[0];
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fff7fb_0%,#ffeaf4_35%,#ffe2ef_70%,#fff4f8_100%)] p-6 md:p-8">
+    <div 
+      className="min-h-screen p-6 md:p-8 transition-colors duration-500"
+      style={{ backgroundColor: currentTheme.color }}
+    >
       {/* Background decorations */}
       <div className="pointer-events-none fixed inset-0 opacity-70">
         <div className="absolute left-8 top-10 text-pink-200"><Flower2 className="h-16 w-16" /></div>
@@ -72,16 +87,51 @@ export default function Dashboard() {
       <div className="relative mx-auto max-w-7xl">
         <header className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2 text-rose-700">
+            <h1 className="text-3xl font-bold flex items-center gap-2 text-primary">
               <LayoutTemplate className="h-8 w-8" />
               Soft Bloom Dashboard
             </h1>
-            <p className="text-rose-500 mt-1">Widget seç, sürükle, kendi alanını oluştur</p>
+            <p className="text-primary/70 mt-1">Widget seç, sürükle, kendi alanını oluştur</p>
           </div>
 
-          <div className="relative">
-            <Button 
-              onClick={() => setShowDropdown(!showDropdown)}
+          <div className="flex items-center gap-3 relative">
+            <div className="relative">
+              <Button 
+                onClick={() => {
+                  setShowColorPicker(!showColorPicker);
+                  setShowDropdown(false);
+                }}
+                variant="outline"
+                className="bg-white/50 backdrop-blur-sm border-white/50 hover:bg-white/80 rounded-xl"
+              >
+                <Palette className="h-5 w-5" />
+              </Button>
+
+              {showColorPicker && (
+                <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white/90 backdrop-blur-xl border border-rose-100 shadow-xl overflow-hidden z-50 p-2 grid gap-1">
+                  {THEME_COLORS.map(color => (
+                    <button
+                      key={color.id}
+                      onClick={() => {
+                        setTheme(color.id);
+                        setShowColorPicker(false);
+                      }}
+                      className={`flex items-center gap-3 w-full text-left px-3 py-2 text-sm font-medium rounded-lg transition-colors ${theme === color.id ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100'}`}
+                    >
+                      <div className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: color.color }} />
+                      {color.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <Button 
+                onClick={() => {
+                  setShowDropdown(!showDropdown);
+                  setShowColorPicker(false);
+                }}
               className="bg-rose-500 hover:bg-rose-600 rounded-full pl-4 pr-5 shadow-lg"
             >
               <Plus className="mr-2 h-5 w-5" />
@@ -94,13 +144,14 @@ export default function Dashboard() {
                   <button
                     key={opt.type}
                     onClick={() => addWidget(opt)}
-                    className="w-full text-left px-4 py-3 text-sm font-medium text-rose-700 hover:bg-rose-50 transition-colors border-b border-rose-50/50 last:border-0"
+                    className="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
                   >
                     {opt.label}
                   </button>
                 ))}
               </div>
             )}
+            </div>
           </div>
         </header>
 

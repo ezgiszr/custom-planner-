@@ -47,6 +47,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        'soft-pink-light': '#FFE4FB',
+        'soft-pink': '#FFC8EE',
+        'sage-light': '#DEE2B9',
+        'sage-medium': '#B1CBAC',
+        'sage-dark': '#88AE89',
       },
       borderRadius: {
         lg: `var(--radius)`,
