@@ -18,6 +18,7 @@ const WIDGET_OPTIONS = [
   { type: "timer", label: "Zamanlayıcı", defaultW: 4, defaultH: 4 },
   { type: "weekly", label: "Haftalık Plan", defaultW: 6, defaultH: 5 },
   { type: "calendar", label: "Takvim", defaultW: 4, defaultH: 5 },
+  { type: "notes", label: "Notlar", defaultW: 4, defaultH: 4 },
 ];
 
 const THEME_COLORS = [

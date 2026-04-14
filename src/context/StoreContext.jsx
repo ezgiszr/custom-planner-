@@ -14,11 +14,15 @@ export function StoreProvider({ children }) {
   const [tasks, setTasksLocal] = useState([]);
   const [weeklyEvents, setWeeklyEventsLocal] = useState([]);
   const [calendarEvents, setCalendarEventsLocal] = useState([]);
+  const [noteText, setNoteTextLocal] = useState("");
+  const [noteTitle, setNoteTitleLocal] = useState("Not Defteri");
   const [activeTaskId, setActiveTaskId] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const tasksSaveTimer = useRef(null);
+  const noteSaveTimer = useRef(null);
+  const pendingNoteData = useRef({});
 
   // ------ Firestore listeners ------
   useEffect(() => {
@@ -33,10 +37,26 @@ export function StoreProvider({ children }) {
     let tasksLoaded = false;
     let eventsLoaded = false;
     let calLoaded = false;
+    let notesLoaded = false;
 
     const checkLoaded = () => {
-      if (tasksLoaded && eventsLoaded && calLoaded) setLoaded(true);
+      if (tasksLoaded && eventsLoaded && calLoaded && notesLoaded) setLoaded(true);
     };
+
+    const unsubNote = onSnapshot(
+      doc(db, "users", uid, "notes", "main"),
+      (snap) => {
+        if (snap.exists()) {
+          setNoteTextLocal(snap.data().text || "");
+          setNoteTitleLocal(snap.data().title || "Not Defteri");
+        } else {
+          setNoteTextLocal("");
+          setNoteTitleLocal("Not Defteri");
+        }
+        notesLoaded = true;
+        checkLoaded();
+      }
+    );
 
     const unsubTasks = onSnapshot(
       collection(db, "users", uid, "tasks"),
@@ -65,7 +85,7 @@ export function StoreProvider({ children }) {
       }
     );
 
-    return () => { unsubTasks(); unsubEvents(); unsubCal(); };
+    return () => { unsubTasks(); unsubEvents(); unsubCal(); unsubNote(); };
   }, [uid]);
 
   // ------ Firestore writers ------
@@ -145,6 +165,27 @@ export function StoreProvider({ children }) {
     });
   };
 
+  const setNoteText = (newText) => {
+    setNoteTextLocal(newText);
+    pendingNoteData.current.text = newText;
+    scheduleNoteSave();
+  };
+
+  const setNoteTitle = (newTitle) => {
+    setNoteTitleLocal(newTitle);
+    pendingNoteData.current.title = newTitle;
+    scheduleNoteSave();
+  };
+
+  const scheduleNoteSave = () => {
+    if (!uid) return;
+    if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current);
+    noteSaveTimer.current = setTimeout(() => {
+      setDoc(doc(db, "users", uid, "notes", "main"), pendingNoteData.current, { merge: true });
+      pendingNoteData.current = {};
+    }, 1000);
+  };
+
   // ------ Timer countdown ------
   useEffect(() => {
     if (!isRunning || activeTaskId === null) return;
@@ -168,6 +209,8 @@ export function StoreProvider({ children }) {
       tasks, setTasks,
       weeklyEvents, setWeeklyEvents,
       calendarEvents, setCalendarEvents,
+      noteText, setNoteText,
+      noteTitle, setNoteTitle,
       activeTaskId, setActiveTaskId,
       isRunning, setIsRunning,
       loaded,
@@ -177,7 +220,7 @@ export function StoreProvider({ children }) {
           ? 0
           : Math.round((tasks.filter((item) => item.done).length / tasks.length) * 100),
     }),
-    [tasks, weeklyEvents, calendarEvents, activeTaskId, isRunning, loaded]
+    [tasks, weeklyEvents, calendarEvents, noteText, noteTitle, activeTaskId, isRunning, loaded]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
