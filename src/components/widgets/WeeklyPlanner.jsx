@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Plus, X, Clock } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Plus, X, Clock, Check } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,21 +11,63 @@ export default function WeeklyPlanner() {
   const [newEventEndTime, setNewEventEndTime] = useState("");
   const [selectedDay, setSelectedDay] = useState("Pzt");
 
+  const [editingEventId, setEditingEventId] = useState(null);
+  const editorRef = useRef(null);
+
   const days = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
-  const addEvent = () => {
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (editingEventId) {
+        if (editorRef.current && editorRef.current.contains(e.target)) return;
+        if (e.target.closest('[data-event-item="true"]')) return;
+        cancelEdit();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [editingEventId]);
+
+  const startEditing = (e) => {
+    setEditingEventId(e.id);
+    setNewEventText(e.text || "");
+    setNewEventStartTime(e.startTime || e.time || "");
+    setNewEventEndTime(e.endTime || "");
+    setSelectedDay(e.day);
+  };
+
+  const saveEvent = () => {
     const trimmedText = newEventText.trim();
     if (!trimmedText) return;
-    setWeeklyEvents((prev) => [
-      ...prev,
-      { 
-        id: Date.now(), 
-        day: selectedDay, 
-        startTime: newEventStartTime, 
-        endTime: newEventEndTime, 
-        text: trimmedText 
-      },
-    ]);
+
+    if (editingEventId) {
+      setWeeklyEvents((prev) => 
+        prev.map(ev => 
+          ev.id === editingEventId 
+            ? { ...ev, text: trimmedText, startTime: newEventStartTime, endTime: newEventEndTime, day: selectedDay, time: undefined } 
+            : ev
+        )
+      );
+      setEditingEventId(null);
+    } else {
+      setWeeklyEvents((prev) => [
+        ...prev,
+        { 
+          id: Date.now(), 
+          day: selectedDay, 
+          startTime: newEventStartTime, 
+          endTime: newEventEndTime, 
+          text: trimmedText 
+        },
+      ]);
+    }
+    setNewEventText("");
+    setNewEventStartTime("");
+    setNewEventEndTime("");
+  };
+
+  const cancelEdit = () => {
+    setEditingEventId(null);
     setNewEventText("");
     setNewEventStartTime("");
     setNewEventEndTime("");
@@ -39,13 +81,13 @@ export default function WeeklyPlanner() {
     <div className="h-full flex flex-col p-4">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h3 className="font-semibold text-rose-800">Haftalık Plan</h3>
-        <div className="flex gap-2 items-center flex-wrap sm:flex-nowrap justify-end">
+        <div ref={editorRef} className="flex gap-2 items-center flex-wrap sm:flex-nowrap justify-end">
           <Input 
             value={newEventText}
             onChange={(e) => setNewEventText(e.target.value)}
             placeholder="Örn: Okul Programı"
             className="h-8 text-xs bg-white/70 border-rose-200 min-w-[120px]"
-            onKeyDown={(e) => e.key === "Enter" && addEvent()}
+            onKeyDown={(e) => e.key === "Enter" && saveEvent()}
           />
           <Input 
             type="time"
@@ -69,9 +111,14 @@ export default function WeeklyPlanner() {
           >
             {days.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
-          <Button onClick={addEvent} size="icon" className="h-8 w-8 bg-rose-400 hover:bg-rose-500 shrink-0">
-            <Plus className="h-4 w-4" />
+          <Button onClick={saveEvent} size="icon" className={`h-8 w-8 shrink-0 ${editingEventId ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-400 hover:bg-rose-500'}`}>
+            {editingEventId ? <Check className="h-4 w-4 text-white" /> : <Plus className="h-4 w-4 text-white" />}
           </Button>
+          {editingEventId && (
+            <Button onClick={cancelEdit} size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-rose-400 hover:text-rose-500 hover:bg-rose-100">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
       
@@ -137,7 +184,9 @@ export default function WeeklyPlanner() {
                           return newEvents;
                         });
                       }}
-                      className="group relative flex flex-col text-[11px] leading-tight bg-rose-100 text-rose-800 rounded p-1.5 border border-rose-200 break-words cursor-grab active:cursor-grabbing hover:border-rose-400 hover:shadow-md transition-all select-none"
+                      data-event-item="true"
+                      className={`group relative flex flex-col text-[11px] leading-tight bg-rose-100 text-rose-800 rounded p-1.5 border border-rose-200 break-words cursor-grab active:cursor-grabbing hover:border-rose-400 hover:shadow-md transition-all select-none ${editingEventId === e.id ? 'border-rose-400 shadow-sm opacity-50' : ''}`}
+                      onClick={() => startEditing(e)}
                     >
                       {(e.startTime || e.endTime || e.time) && (
                         <div className="flex items-center text-[10px] text-rose-500 font-semibold mb-0.5 pointer-events-none">
@@ -150,8 +199,9 @@ export default function WeeklyPlanner() {
                       <span className="pr-3 pointer-events-none">{e.text}</span>
                       
                       <button 
-                        onClick={() => removeEvent(e.id)}
-                        className="absolute right-1 top-1 text-rose-400 hover:text-rose-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                        type="button"
+                        onClick={(evt) => { evt.stopPropagation(); removeEvent(e.id); }}
+                        className="absolute right-1 top-1 text-rose-400 hover:text-rose-700 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         aria-label="Remove Event"
                       >
                         <X className="h-3 w-3" />
