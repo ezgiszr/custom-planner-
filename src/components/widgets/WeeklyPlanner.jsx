@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 export default function WeeklyPlanner() {
   const { weeklyEvents, setWeeklyEvents } = useStore();
   const [newEventText, setNewEventText] = useState("");
-  const [newEventTime, setNewEventTime] = useState("");
+  const [newEventStartTime, setNewEventStartTime] = useState("");
+  const [newEventEndTime, setNewEventEndTime] = useState("");
   const [selectedDay, setSelectedDay] = useState("Pzt");
 
   const days = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -20,12 +21,14 @@ export default function WeeklyPlanner() {
       { 
         id: Date.now(), 
         day: selectedDay, 
-        time: newEventTime, 
+        startTime: newEventStartTime, 
+        endTime: newEventEndTime, 
         text: trimmedText 
       },
     ]);
     setNewEventText("");
-    setNewEventTime("");
+    setNewEventStartTime("");
+    setNewEventEndTime("");
   };
 
   const removeEvent = (id) => {
@@ -46,9 +49,18 @@ export default function WeeklyPlanner() {
           />
           <Input 
             type="time"
-            value={newEventTime}
-            onChange={(e) => setNewEventTime(e.target.value)}
-            className="h-8 text-xs bg-white/70 border-rose-200 w-[100px]"
+            value={newEventStartTime}
+            onChange={(e) => setNewEventStartTime(e.target.value)}
+            className="h-8 text-xs bg-white/70 border-rose-200 w-[95px]"
+            title="Başlangıç saati"
+          />
+          <span className="text-rose-300 text-xs font-semibold select-none">–</span>
+          <Input 
+            type="time"
+            value={newEventEndTime}
+            onChange={(e) => setNewEventEndTime(e.target.value)}
+            className="h-8 text-xs bg-white/70 border-rose-200 w-[95px]"
+            title="Bitiş saati"
           />
           <select
             value={selectedDay}
@@ -127,10 +139,12 @@ export default function WeeklyPlanner() {
                       }}
                       className="group relative flex flex-col text-[11px] leading-tight bg-rose-100 text-rose-800 rounded p-1.5 border border-rose-200 break-words cursor-grab active:cursor-grabbing hover:border-rose-400 hover:shadow-md transition-all select-none"
                     >
-                      {e.time && (
+                      {(e.startTime || e.endTime || e.time) && (
                         <div className="flex items-center text-[10px] text-rose-500 font-semibold mb-0.5 pointer-events-none">
                           <Clock className="w-3 h-3 mr-1" />
-                          {e.time}
+                          {e.startTime && e.endTime
+                            ? `${e.startTime} – ${e.endTime}`
+                            : e.startTime || e.endTime || e.time}
                         </div>
                       )}
                       <span className="pr-3 pointer-events-none">{e.text}</span>
