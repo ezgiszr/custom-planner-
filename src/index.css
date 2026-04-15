@@ -167,3 +167,10 @@
 .scalable-widget .min-w-\[120px\] { min-width: clamp(2.5rem, 15cqmin, 7.5rem) !important; }
 .scalable-widget .w-\[100px\] { width: clamp(2.5rem, 12.5cqmin, 6.25rem) !important; }
 .scalable-widget .min-h-\[150px\] { min-height: clamp(3.5rem, 18.7cqmin, 9.375rem) !important; }
+
+/* Bullet Journal Theme */
+.bg-dot-grid-light {
+  background-image: radial-gradient(rgba(170, 160, 150, 0.45) 1.5px, transparent 1.5px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
+}

@@ -30,6 +30,7 @@ const THEME_COLORS = [
   { id: 'sage-light', color: '#DEE2B9', name: 'Sage Light' },
   { id: 'sage-medium', color: '#B1CBAC', name: 'Sage Medium' },
   { id: 'sage-dark', color: '#88AE89', name: 'Sage Dark' },
+  { id: 'bullet-journal', color: '#FDFBF7', name: 'Noktalı Defter', bgClass: 'bg-dot-grid-light' },
 ];
 
 const DEFAULT_PREFS = { layout: [], widgets: [], theme: "soft-pink-light" };
@@ -151,7 +152,7 @@ export default function Dashboard() {
 
   return (
     <div
-      className="min-h-screen p-6 md:p-8 transition-colors duration-500"
+      className={`min-h-screen p-6 md:p-8 transition-colors duration-500 ${currentTheme.bgClass || ''}`}
       style={{ backgroundColor: currentTheme.color }}
     >
       {/* Background decorations */}
@@ -201,7 +202,7 @@ export default function Dashboard() {
                       onClick={() => { setTheme(color.id); setShowColorPicker(false); }}
                       className={`flex items-center gap-3 w-full text-left px-3 py-2 text-sm font-medium rounded-lg transition-colors ${theme === color.id ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-100'}`}
                     >
-                      <div className="w-4 h-4 rounded-full border border-black/10" style={{ backgroundColor: color.color }} />
+                      <div className={`w-4 h-4 rounded-full border border-black/10 shrink-0 ${color.bgClass || ''}`} style={{ backgroundColor: color.color }} />
                       {color.name}
                     </button>
                   ))}
