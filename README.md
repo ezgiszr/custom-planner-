@@ -39,7 +39,7 @@ Each user can design their own dashboard layout.
 Live Demo:
 
 ```
-(https://manage-your-time-e04ae.web.app)
+https://manage-your-time-e04ae.web.app
 ```
 
 ---
